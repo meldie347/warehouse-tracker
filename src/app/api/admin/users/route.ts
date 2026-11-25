@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAdminRequest } from "@/lib/apiHelpers";
+import { createAccountSchema } from "@/lib/validation";
+import { hashPassword } from "@/lib/auth";
+
+export async function POST(request: NextRequest) {
+  const auth = await requireAdminRequest(request);
+  if ("error" in auth) return auth.error;
+
+  const body = await request.json().catch(() => null);
+  const parsed = createAccountSchema.safeParse(body);
+  if (!parsed.success) {
+    const passwordInvalid = parsed.error.issues.some((issue) => issue.path[0] === "password");
+    return NextResponse.json(
+      { error: passwordInvalid ? "Password must be at least 8 characters" : "Enter a username" },
+      { status: 400 }
+    );
+  }
+
+  // Stored exactly as typed so it displays the way the admin intended. Login still
+  // matches case-insensitively, so uniqueness must be checked the same way —
+  // otherwise "Minsel" and "minsel" could both be created as distinct accounts.
+  const username = parsed.data.username.trim();
+  const existing = await prisma.user.findFirst({
+    where: { username: { equals: username, mode: "insensitive" } },
+  });
+  if (existing) {
+    return NextResponse.json({ error: "That username is already taken" }, { status: 409 });
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  const user = await prisma.user.create({
+    data: {
+      username,
+      passwordHash,
+      role: "STAFF",
+      passwordChangedAt: new Date(),
+    },
+  });
+
+  return NextResponse.json({ id: user.id, username: user.username }, { status: 201 });
+}

@@ -1,0 +1,188 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { onStockUpdated } from "@/lib/updateSignal";
+import { formatTime12 } from "@/lib/dateFormat";
+import { fetchWithTimeout, describeFetchError } from "@/lib/fetchWithTimeout";
+import type { Role } from "@/generated/prisma/client";
+
+const links = [
+  { href: "/", label: "Catalog" },
+  { href: "/manage", label: "Products & Categories" },
+  { href: "/audit", label: "Activity Log" },
+];
+
+const adminLinks = [
+  { href: "/admin/accounts", label: "Accounts" },
+  { href: "/admin/shops", label: "Shops" },
+  { href: "/admin/reports", label: "Report" },
+];
+
+export default function NavBar({
+  username,
+  role,
+  initialLastUpdated,
+}: {
+  username: string;
+  role: Role;
+  initialLastUpdated: string | null;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [openedForPathname, setOpenedForPathname] = useState(pathname);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(
+    initialLastUpdated ? new Date(initialLastUpdated) : null
+  );
+  const [syncedLastUpdated, setSyncedLastUpdated] = useState(initialLastUpdated);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
+  // Close the menu when navigation changes the route, without an effect:
+  // adjusting state during render is React's recommended pattern for this.
+  if (pathname !== openedForPathname) {
+    setOpenedForPathname(pathname);
+    if (open) setOpen(false);
+  }
+
+  // initialLastUpdated is the source of truth (survives reloads/backgrounding);
+  // re-sync whenever the layout re-fetches it, e.g. after router.refresh().
+  if (initialLastUpdated !== syncedLastUpdated) {
+    setSyncedLastUpdated(initialLastUpdated);
+    setLastUpdated(initialLastUpdated ? new Date(initialLastUpdated) : null);
+  }
+
+  // Fires instantly on this tab's own stock movement, ahead of the server round-trip.
+  useEffect(() => onStockUpdated(() => setLastUpdated(new Date())), []);
+
+  // Scrolling the page is a stronger dismiss signal than requiring a tap on
+  // touch devices, which have no hover to close the menu with otherwise.
+  // Arm the listener on a short delay rather than the instant the menu
+  // opens: mobile browsers often fire a scroll event around a tap itself
+  // (address bar collapsing, viewport settling), which would otherwise
+  // close the menu back out immediately and make the burger button feel
+  // like it isn't responding at all.
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const armTimer = setTimeout(() => {
+      window.addEventListener("scroll", close, { passive: true });
+    }, 300);
+    return () => {
+      clearTimeout(armTimer);
+      window.removeEventListener("scroll", close);
+    };
+  }, [open]);
+
+  async function handleLogout() {
+    setLogoutError(null);
+    setLoggingOut(true);
+    try {
+      const res = await fetchWithTimeout("/api/auth/logout", { method: "POST" });
+      if (!res.ok) {
+        setLogoutError("Failed to log out");
+        setLoggingOut(false);
+        return;
+      }
+      router.replace("/login");
+      router.refresh();
+    } catch (err) {
+      setLogoutError(describeFetchError(err));
+      setLoggingOut(false);
+    }
+  }
+
+  return (
+    <div className="sticky top-0 z-40">
+      <header className="h-14 border-b border-black/10 dark:border-zinc-800 bg-white/55 dark:bg-zinc-950/95 backdrop-blur-xl backdrop-saturate-150">
+        <div className="mx-auto flex h-full max-w-3xl items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setOpen((o) => !o)}
+              aria-label="Menu"
+              aria-expanded={open}
+              className="-ml-1 flex h-11 w-11 touch-manipulation items-center justify-center rounded-md text-zinc-600 dark:text-zinc-300 active:bg-black/10 hover:bg-black/5 dark:active:bg-zinc-800 dark:hover:bg-zinc-900"
+            >
+              <span className="text-xl leading-none">☰</span>
+            </button>
+            <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              Warehouse Tracker
+            </span>
+          </div>
+          <span className="text-xs text-zinc-500 tabular-nums">
+            {lastUpdated ? `Updated ${formatTime12(lastUpdated)}` : ""}
+          </span>
+        </div>
+      </header>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            onMouseLeave={() => {
+              // Touch devices synthesize mouseleave/mouseout right when a tap
+              // lands, which would close the menu out from under the finger
+              // before the tap's own click/navigation registers. Only real
+              // hover-capable pointers (a mouse) should close on hover-away.
+              if (typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches) {
+                setOpen(false);
+              }
+            }}
+            className="absolute left-4 top-full z-50 mt-1 w-64 rounded-xl border border-black/10 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950 backdrop-blur-xl backdrop-saturate-150 p-3 shadow-lg"
+          >
+            <nav className="flex flex-col gap-0.5 mb-3">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={
+                    pathname === link.href
+                      ? "rounded-md px-3 py-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50"
+                      : "rounded-md px-3 py-3 text-sm text-zinc-500 active:bg-black/10 hover:bg-black/5 dark:hover:bg-zinc-900"
+                  }
+                >
+                  {link.label}
+                </Link>
+              ))}
+              {role === "ADMIN" &&
+                adminLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={
+                      pathname === link.href
+                        ? "rounded-md px-3 py-3 text-sm font-semibold text-zinc-900 dark:text-zinc-50"
+                        : "rounded-md px-3 py-3 text-sm text-zinc-500 active:bg-black/10 hover:bg-black/5 dark:hover:bg-zinc-900"
+                    }
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+            </nav>
+
+            <div className="border-t border-black/10 dark:border-zinc-900 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-zinc-500">{username}</span>
+                <button
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="text-sm text-zinc-500 hover:text-red-600 disabled:opacity-50"
+                >
+                  {loggingOut ? "Logging out…" : "Log out"}
+                </button>
+              </div>
+              {logoutError && (
+                <p className="mt-1 text-xs text-red-600 dark:text-red-400">{logoutError}</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

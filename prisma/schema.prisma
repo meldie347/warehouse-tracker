@@ -1,0 +1,133 @@
+// Prisma schema for warehouse-tracker
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id                String    @id @default(cuid())
+  username          String    @unique
+  passwordHash      String
+  role              Role      @default(STAFF)
+  // Set when an admin deactivates the account (login is blocked), independent
+  // of whether the row itself still exists — an admin can later also delete a
+  // deactivated account outright. AuditLog.userId is ON DELETE SET NULL with
+  // its own usernameSnapshot, so deleting a User never breaks history.
+  deactivatedAt     DateTime?
+  // Bumped on every admin-driven password reset so an already-issued
+  // session cookie (SessionData.issuedAt) can be invalidated immediately,
+  // instead of staying valid until it naturally expires.
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+  lastLoginAt       DateTime?
+
+  loginAttempts LoginAttempt[]
+  auditLogs     AuditLog[]
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  username  String
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  success   Boolean
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([username, createdAt])
+  @@index([userId])
+}
+
+// Admin-managed destination list for "Send to shop". Unlike Category, Shop
+// hard-deletes freely — its only "children" are AuditLog rows, which already
+// survive deletion via shopId's ON DELETE SET NULL plus shopNameSnapshot.
+// retiredAt is the separate, softer action: hides it from the active picker
+// (and blocks new "Send to shop" entries against it) without erasing anything.
+model Shop {
+  id        String    @id @default(cuid())
+  name      String
+  sortOrder Int       @default(0)
+  retiredAt DateTime?
+  createdAt DateTime  @default(now())
+
+  sendEntries AuditLog[]
+
+  @@index([retiredAt])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  products Product[]
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name       String
+  stockCount Int      @default(0)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@index([categoryId])
+}
+
+enum WarehouseAction {
+  RECEIVE
+  SEND
+  ADJUST
+}
+
+model AuditLog {
+  id        String          @id @default(cuid())
+  createdAt DateTime        @default(now())
+  action    WarehouseAction
+
+  userId           String?
+  user             User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  usernameSnapshot String
+
+  productId            String?
+  product              Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productNameSnapshot  String
+  categoryNameSnapshot String
+
+  // Only set for SEND entries — same nullable-FK-plus-snapshot shape as
+  // userId/productId above, so deleting a Shop later never corrupts a
+  // historical "sent to X" record.
+  shopId           String?
+  shop             Shop?   @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  shopNameSnapshot String?
+
+  // +qty for RECEIVE, -qty for SEND, either sign for ADJUST.
+  quantityDelta Int
+  stockBefore   Int
+  stockAfter    Int
+
+  // RECEIVE: optional supplier/invoice note. ADJUST: the reason (dropdown
+  // value, or free "Other" text). SEND: unused — the shop is the "why".
+  note String?
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([productId])
+  @@index([shopId])
+  @@index([action, createdAt])
+}
