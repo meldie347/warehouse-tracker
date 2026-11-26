@@ -12,10 +12,12 @@ export default function CategorySection({
   categoryName,
   products,
   shops,
+  undoableProductIds,
 }: {
   categoryName: string;
   products: Product[];
   shops: Shop[];
+  undoableProductIds: string[];
 }) {
   return (
     <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-16">
@@ -29,6 +31,7 @@ export default function CategorySection({
           name={product.name}
           stockCount={product.stockCount}
           shops={shops}
+          undoable={undoableProductIds.includes(product.id)}
         />
       ))}
     </section>

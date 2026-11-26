@@ -93,6 +93,7 @@ enum WarehouseAction {
   RECEIVE
   SEND
   ADJUST
+  UNDO
 }
 
 model AuditLog {

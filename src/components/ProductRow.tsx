@@ -15,11 +15,13 @@ export default function ProductRow({
   name,
   stockCount,
   shops,
+  undoable,
 }: {
   productId: string;
   name: string;
   stockCount: number;
   shops: Shop[];
+  undoable: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -121,6 +123,27 @@ export default function ProductRow({
     });
   }
 
+  function handleUndo() {
+    if (!confirm("Undo the last change to this product?")) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetchWithTimeout(`/api/products/${productId}/undo-last-change`, {
+          method: "POST",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error ?? "Failed to undo");
+          return;
+        }
+        notifyStockUpdated();
+        router.refresh();
+      } catch (err) {
+        setError(describeFetchError(err));
+      }
+    });
+  }
+
   function handleAdjustSave() {
     const value = Number(adjustValue);
     if (!Number.isInteger(value) || value < 0) {
@@ -181,6 +204,18 @@ export default function ProductRow({
           </span>
         )}
       </div>
+
+      {undoable && (
+        <div className="mt-1">
+          <button
+            onClick={handleUndo}
+            disabled={isPending}
+            className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 disabled:opacity-50"
+          >
+            Undo last change
+          </button>
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap gap-1.5">
         {!receiveOpen ? (

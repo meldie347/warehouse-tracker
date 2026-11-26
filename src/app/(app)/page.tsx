@@ -1,15 +1,24 @@
-import { getCategoriesWithProducts, getShops } from "@/lib/data";
+import { getCategoriesWithProducts, getLastActionByProductId, getShops } from "@/lib/data";
 import CategorySection from "@/components/CategorySection";
 import TabSwitcher from "@/components/TabSwitcher";
 
 export default async function CatalogPage() {
-  const [categories, shops] = await Promise.all([getCategoriesWithProducts(), getShops()]);
+  const [categories, shops, lastActionByProductId] = await Promise.all([
+    getCategoriesWithProducts(),
+    getShops(),
+    getLastActionByProductId(),
+  ]);
 
   const shopOptions = shops.map((s) => ({
     id: s.id,
     name: s.name,
     retiredAt: s.retiredAt ? s.retiredAt.toISOString() : null,
   }));
+
+  // A product can be undone only while an UNDO entry isn't already its last action.
+  const undoableProductIds = Array.from(lastActionByProductId.entries())
+    .filter(([, entry]) => entry.action !== "UNDO")
+    .map(([productId]) => productId);
 
   return (
     <div>
@@ -27,6 +36,7 @@ export default async function CatalogPage() {
               categoryName={category.name}
               products={category.products}
               shops={shopOptions}
+              undoableProductIds={undoableProductIds}
             />
           ))}
         </TabSwitcher>

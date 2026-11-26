@@ -42,6 +42,25 @@ export async function getShops() {
   });
 }
 
+/**
+ * The single most recent AuditLog entry per product, used to decide whether "Undo" should
+ * show for that product right now. Only the literal last thing that happened to a product
+ * counts, and an UNDO entry itself is never further undoable.
+ */
+export async function getLastActionByProductId(): Promise<Map<string, { id: string; action: string }>> {
+  const entries = await prisma.auditLog.findMany({
+    where: { productId: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, productId: true, action: true },
+  });
+  const byProductId = new Map<string, { id: string; action: string }>();
+  for (const entry of entries) {
+    if (!entry.productId || byProductId.has(entry.productId)) continue;
+    byProductId.set(entry.productId, { id: entry.id, action: entry.action });
+  }
+  return byProductId;
+}
+
 export async function getAuditLog(filters: {
   userId?: string;
   productId?: string;
