@@ -9,7 +9,7 @@ const prisma = new PrismaClient({ adapter });
 
 // The current shop locations stock gets sent out to — a starting point for the
 // admin-managed Shop list, editable afterward via the Shops admin page.
-const STARTER_SHOPS = ["MT-G", "Stopngo", "Ipswich"];
+const STARTER_SHOPS = ["MT-G", "Puff", "Ipswich"];
 
 async function seedAdminUser() {
   const username = process.env.SEED_ADMIN_USERNAME;
