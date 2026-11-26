@@ -10,6 +10,7 @@ import type { Role } from "@/generated/prisma/client";
 
 const links = [
   { href: "/", label: "Catalog" },
+  { href: "/send", label: "Send to Shop" },
   { href: "/manage", label: "Products & Categories" },
   { href: "/audit", label: "Activity Log" },
 ];

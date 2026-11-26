@@ -23,6 +23,19 @@ export const sendSchema = z.object({
   shopId: z.string().min(1),
 });
 
+export const sendBatchSchema = z.object({
+  shopId: z.string().min(1),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        quantity: z.number().int().positive().max(100_000),
+      })
+    )
+    .min(1)
+    .max(200),
+});
+
 export const createCategorySchema = z.object({
   name: z.string().trim().min(1).max(200),
 });
