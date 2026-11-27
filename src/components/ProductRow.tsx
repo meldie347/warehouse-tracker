@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchWithTimeout, describeFetchError } from "@/lib/fetchWithTimeout";
 import { notifyStockUpdated } from "@/lib/updateSignal";
 import { ADJUST_DEDUCTION_REASONS, ADJUST_INCREASE_REASONS } from "@/lib/adjustReasons";
+import NumberStepper from "@/components/NumberStepper";
 
 const LOW_STOCK_THRESHOLD = 3; // easy to adjust; low-stock = 0 < stockCount <= this
 
@@ -228,13 +229,7 @@ export default function ProductRow({
         ) : (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-zinc-500">Qty</span>
-            <input
-              type="number"
-              min={1}
-              value={receiveQty}
-              onChange={(e) => setReceiveQty(e.target.value)}
-              className="w-16 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm text-center"
-            />
+            <NumberStepper value={receiveQty} onChange={setReceiveQty} min={1} />
             <input
               type="text"
               value={receiveNote}
@@ -276,13 +271,7 @@ export default function ProductRow({
         ) : (
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs text-zinc-500">Qty</span>
-            <input
-              type="number"
-              min={1}
-              value={sendQty}
-              onChange={(e) => setSendQty(e.target.value)}
-              className="w-16 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm text-center"
-            />
+            <NumberStepper value={sendQty} onChange={setSendQty} min={1} />
             <select
               value={sendShopId}
               onChange={(e) => setSendShopId(e.target.value)}
@@ -331,13 +320,7 @@ export default function ProductRow({
           <div className="flex flex-col gap-1.5 mt-1">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-zinc-500">Set stock to</span>
-              <input
-                type="number"
-                min={0}
-                value={adjustValue}
-                onChange={(e) => setAdjustValue(e.target.value)}
-                className="w-16 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm text-center"
-              />
+              <NumberStepper value={adjustValue} onChange={setAdjustValue} min={0} />
               <button
                 onClick={handleAdjustSave}
                 disabled={isPending}

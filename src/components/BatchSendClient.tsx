@@ -10,6 +10,7 @@ import type { WarehouseBreakdownCategory } from "@/lib/data";
 import TabSwitcher from "@/components/TabSwitcher";
 import CopyButton from "@/components/CopyButton";
 import WarehouseBreakdown from "@/components/WarehouseBreakdown";
+import NumberStepper from "@/components/NumberStepper";
 
 type Product = { id: string; name: string; stockCount: number };
 type Category = { id: string; name: string; products: Product[] };
@@ -211,13 +212,11 @@ export default function BatchSendClient({
                   <p className="truncate text-sm text-zinc-900 dark:text-zinc-50">{product.name}</p>
                   <p className="text-xs text-zinc-500">Stock: {product.stockCount}</p>
                 </div>
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="0"
+                <NumberStepper
                   value={quantities[product.id] ?? ""}
-                  onChange={(e) => handleQuantityChange(product.id, e.target.value)}
-                  className="w-16 shrink-0 rounded-md border border-zinc-300 dark:border-zinc-700 bg-transparent px-2 py-1 text-sm text-center"
+                  onChange={(value) => handleQuantityChange(product.id, value)}
+                  min={0}
+                  className="shrink-0"
                 />
               </div>
             ))}
