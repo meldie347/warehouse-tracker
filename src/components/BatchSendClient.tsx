@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fetchWithTimeout, describeFetchError } from "@/lib/fetchWithTimeout";
 import { notifyStockUpdated } from "@/lib/updateSignal";
-import { formatDateDDMMYY } from "@/lib/dateFormat";
+import { formatDateDDMMYY, formatTime12 } from "@/lib/dateFormat";
 import { buildTopUpCopyText } from "@/lib/sendCopyText";
 import TabSwitcher from "@/components/TabSwitcher";
 import CopyButton from "@/components/CopyButton";
@@ -26,7 +26,7 @@ export default function BatchSendClient({
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [copyText, setCopyText] = useState<string | null>(null);
+  const [topUps, setTopUps] = useState<{ id: string; text: string }[]>([]);
 
   const activeShops = shops.filter((s) => !s.retiredAt);
   const shopName = activeShops.find((s) => s.id === shopId)?.name ?? "";
@@ -39,10 +39,11 @@ export default function BatchSendClient({
     setShopId(newShopId);
     // Staged quantities are for one specific shop — switching shops mid-build would
     // otherwise silently carry a list meant for the old shop over to the new one.
+    // topUps is left alone: it's a running record of everything sent this visit,
+    // so earlier shops' lists are still there to copy later.
     setQuantities({});
     setError(null);
     setSuccess(null);
-    setCopyText(null);
   }
 
   function handleQuantityChange(productId: string, value: string) {
@@ -60,7 +61,6 @@ export default function BatchSendClient({
     }
     setError(null);
     setSuccess(null);
-    setCopyText(null);
     startTransition(async () => {
       try {
         const res = await fetchWithTimeout("/api/products/send-batch", {
@@ -87,7 +87,10 @@ export default function BatchSendClient({
               .map((product) => ({ name: product.name, quantity: sentByProductId.get(product.id)! })),
           }))
           .filter((category) => category.products.length > 0);
-        setCopyText(buildTopUpCopyText(data.shopName, formatDateDDMMYY(new Date()), sentCategories));
+        const now = new Date();
+        const dateLabel = `${formatDateDDMMYY(now)}, ${formatTime12(now)}`;
+        const text = buildTopUpCopyText(data.shopName, dateLabel, sentCategories);
+        setTopUps((prev) => [{ id: `${now.getTime()}-${Math.random()}`, text }, ...prev]);
 
         notifyStockUpdated();
         router.refresh();
@@ -122,14 +125,22 @@ export default function BatchSendClient({
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {success && <p className="mb-2 text-sm text-green-600 dark:text-green-400">{success}</p>}
 
-      {copyText && (
-        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs text-zinc-500">Top-up list for staff</p>
-            <CopyButton text={copyText} />
-          </div>
-          <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-900 dark:text-zinc-50">{copyText}</pre>
-        </section>
+      {topUps.length > 0 && (
+        <div className="mb-4 flex flex-col gap-3">
+          {topUps.map((entry) => (
+            <section
+              key={entry.id}
+              className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4"
+            >
+              <div className="mb-2 flex justify-end">
+                <CopyButton text={entry.text} />
+              </div>
+              <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-900 dark:text-zinc-50">
+                {entry.text}
+              </pre>
+            </section>
+          ))}
+        </div>
       )}
 
       <TabSwitcher tabs={categories.map((c) => ({ id: c.id, label: c.name.split("\n")[0] }))}>
