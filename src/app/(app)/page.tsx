@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCategoriesWithProducts, getLastActionByProductId, getShops } from "@/lib/data";
 import CategorySection from "@/components/CategorySection";
 import TabSwitcher from "@/components/TabSwitcher";
@@ -22,6 +23,15 @@ export default async function CatalogPage() {
 
   return (
     <div>
+      <div className="mb-4 flex justify-end">
+        <Link
+          href="/send"
+          className="rounded-md bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-900 px-4 py-2 text-sm font-medium"
+        >
+          Send to Shop
+        </Link>
+      </div>
+
       {categories.length === 0 ? (
         <p className="text-sm text-zinc-500">
           No categories yet. Head to Products &amp; Categories to add your first category and products.
