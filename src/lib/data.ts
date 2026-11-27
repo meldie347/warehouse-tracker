@@ -65,12 +65,17 @@ export async function getAuditLog(filters: {
   userId?: string;
   productId?: string;
   shopId?: string;
+  since?: Date;
+  until?: Date; // exclusive
 }) {
   return prisma.auditLog.findMany({
     where: {
       userId: filters.userId,
       productId: filters.productId,
       shopId: filters.shopId,
+      ...(filters.since || filters.until
+        ? { createdAt: { gte: filters.since, lt: filters.until } }
+        : {}),
     },
     include: {
       shop: { select: { name: true } },
