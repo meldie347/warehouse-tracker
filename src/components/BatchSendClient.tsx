@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fetchWithTimeout, describeFetchError } from "@/lib/fetchWithTimeout";
 import { notifyStockUpdated } from "@/lib/updateSignal";
+import { formatDateDDMMYY } from "@/lib/dateFormat";
+import { buildTopUpCopyText } from "@/lib/sendCopyText";
 import TabSwitcher from "@/components/TabSwitcher";
+import CopyButton from "@/components/CopyButton";
 
 type Product = { id: string; name: string; stockCount: number };
 type Category = { id: string; name: string; products: Product[] };
@@ -23,6 +26,7 @@ export default function BatchSendClient({
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [copyText, setCopyText] = useState<string | null>(null);
 
   const activeShops = shops.filter((s) => !s.retiredAt);
   const shopName = activeShops.find((s) => s.id === shopId)?.name ?? "";
@@ -38,6 +42,7 @@ export default function BatchSendClient({
     setQuantities({});
     setError(null);
     setSuccess(null);
+    setCopyText(null);
   }
 
   function handleQuantityChange(productId: string, value: string) {
@@ -55,6 +60,7 @@ export default function BatchSendClient({
     }
     setError(null);
     setSuccess(null);
+    setCopyText(null);
     startTransition(async () => {
       try {
         const res = await fetchWithTimeout("/api/products/send-batch", {
@@ -69,6 +75,20 @@ export default function BatchSendClient({
         }
         setQuantities({});
         setSuccess(`Sent ${data.sent.length} item${data.sent.length === 1 ? "" : "s"} to ${data.shopName}.`);
+
+        const sentByProductId = new Map<string, number>(
+          data.sent.map((item: { productId: string; quantity: number }) => [item.productId, item.quantity])
+        );
+        const sentCategories = categories
+          .map((category) => ({
+            name: category.name,
+            products: category.products
+              .filter((product) => sentByProductId.has(product.id))
+              .map((product) => ({ name: product.name, quantity: sentByProductId.get(product.id)! })),
+          }))
+          .filter((category) => category.products.length > 0);
+        setCopyText(buildTopUpCopyText(data.shopName, formatDateDDMMYY(new Date()), sentCategories));
+
         notifyStockUpdated();
         router.refresh();
       } catch (err) {
@@ -100,7 +120,17 @@ export default function BatchSendClient({
       </section>
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="mb-4 text-sm text-green-600 dark:text-green-400">{success}</p>}
+      {success && <p className="mb-2 text-sm text-green-600 dark:text-green-400">{success}</p>}
+
+      {copyText && (
+        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs text-zinc-500">Top-up list for staff</p>
+            <CopyButton text={copyText} />
+          </div>
+          <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-900 dark:text-zinc-50">{copyText}</pre>
+        </section>
+      )}
 
       <TabSwitcher tabs={categories.map((c) => ({ id: c.id, label: c.name.split("\n")[0] }))}>
         {categories.map((category) => (
