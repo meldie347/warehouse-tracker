@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCategoriesWithProducts, getShops } from "@/lib/data";
 import BatchSendClient from "@/components/BatchSendClient";
 
@@ -6,9 +7,15 @@ export default async function SendPage() {
 
   return (
     <div>
-      <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 mb-4">
-        Send to Shop
-      </h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">Send to Shop</h1>
+        <Link
+          href="/"
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-zinc-900"
+        >
+          Back to Catalog
+        </Link>
+      </div>
       {categories.length === 0 ? (
         <p className="text-sm text-zinc-500">
           No categories yet. Head to Products &amp; Categories to add your first category and products.
