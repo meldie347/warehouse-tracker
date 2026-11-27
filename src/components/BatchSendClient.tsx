@@ -84,7 +84,7 @@ export default function BatchSendClient({
             name: category.name,
             products: category.products
               .filter((product) => sentByProductId.has(product.id))
-              .map((product) => ({ name: product.name, quantity: sentByProductId.get(product.id)! })),
+              .map((product) => ({ name: product.name, value: sentByProductId.get(product.id)! })),
           }))
           .filter((category) => category.products.length > 0);
         const now = new Date();

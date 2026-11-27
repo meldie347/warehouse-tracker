@@ -6,7 +6,9 @@ import {
   shopLocalStartOfNextDay,
 } from "@/lib/dateFormat";
 import { AUDIT_LOG_RETENTION_DAYS, getAuditLogRetentionCutoff } from "@/lib/retention";
+import { buildTopUpCopyText } from "@/lib/sendCopyText";
 import WarehouseBreakdown from "@/components/WarehouseBreakdown";
+import CopyButton from "@/components/CopyButton";
 
 export default async function ReportPage({
   searchParams,
@@ -44,6 +46,14 @@ export default async function ReportPage({
 
   const retentionCutoff = getAuditLogRetentionCutoff();
   const mayBeIncomplete = since < retentionCutoff;
+
+  const todayValue = formatDateInputValue(new Date());
+  const todayParams = new URLSearchParams({ from: todayValue, to: todayValue });
+  if (selectedShopId) todayParams.set("shop", selectedShopId);
+  const todayHref = `?${todayParams.toString()}`;
+
+  const singleShopCategories =
+    selectedShopId && sendSummary.length > 0 ? groupByCategory(sendSummary[0]!.rows) : null;
 
   return (
     <div>
@@ -89,6 +99,12 @@ export default async function ReportPage({
         >
           View range
         </button>
+        <a
+          href={todayHref}
+          className="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-zinc-900"
+        >
+          Today
+        </a>
       </form>
 
       <p className="text-sm text-zinc-500 mb-2">
@@ -106,19 +122,34 @@ export default async function ReportPage({
 
       {sendSummary.length === 0 ? (
         <p className="text-sm text-zinc-500">Nothing sent in this range.</p>
-      ) : selectedShopId ? (
-        <WarehouseBreakdown kind="SENT" categories={groupByCategory(sendSummary[0]!.rows)} />
+      ) : selectedShopId && singleShopCategories ? (
+        <div>
+          <div className="mb-3 flex justify-end">
+            <CopyButton
+              text={buildTopUpCopyText(sendSummary[0]!.shopName, rangeLabel, singleShopCategories)}
+              label="Copy top-up list"
+            />
+          </div>
+          <WarehouseBreakdown kind="SENT" categories={singleShopCategories} />
+        </div>
       ) : (
         <div className="flex flex-col gap-8">
           {sendSummary.map((group) => {
             const shopTotal = group.rows.reduce((sum, r) => sum + r.value, 0);
+            const categories = groupByCategory(group.rows);
             return (
               <div key={group.shopId ?? group.shopName}>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1">
-                  {group.shopName}
-                </h3>
+                <div className="mb-1 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    {group.shopName}
+                  </h3>
+                  <CopyButton
+                    text={buildTopUpCopyText(group.shopName, rangeLabel, categories)}
+                    label="Copy top-up list"
+                  />
+                </div>
                 <p className="text-xs text-zinc-500 mb-3">{shopTotal} units sent</p>
-                <WarehouseBreakdown kind="SENT" categories={groupByCategory(group.rows)} />
+                <WarehouseBreakdown kind="SENT" categories={categories} />
               </div>
             );
           })}
