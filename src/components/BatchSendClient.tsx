@@ -6,8 +6,10 @@ import { fetchWithTimeout, describeFetchError } from "@/lib/fetchWithTimeout";
 import { notifyStockUpdated } from "@/lib/updateSignal";
 import { formatDateDDMMYY, formatTime12 } from "@/lib/dateFormat";
 import { buildTopUpCopyText } from "@/lib/sendCopyText";
+import type { WarehouseBreakdownCategory } from "@/lib/data";
 import TabSwitcher from "@/components/TabSwitcher";
 import CopyButton from "@/components/CopyButton";
+import WarehouseBreakdown from "@/components/WarehouseBreakdown";
 
 type Product = { id: string; name: string; stockCount: number };
 type Category = { id: string; name: string; products: Product[] };
@@ -27,9 +29,25 @@ export default function BatchSendClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [topUps, setTopUps] = useState<{ id: string; text: string }[]>([]);
+  const [history, setHistory] = useState<{ shopName: string; categories: WarehouseBreakdownCategory[] } | null>(
+    null
+  );
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const activeShops = shops.filter((s) => !s.retiredAt);
   const shopName = activeShops.find((s) => s.id === shopId)?.name ?? "";
+
+  async function loadHistory(id: string) {
+    try {
+      const res = await fetchWithTimeout(`/api/shops/${id}/send-history`);
+      const data = await res.json();
+      setHistory(data);
+    } catch {
+      setHistory(null);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
 
   const stagedItems = Object.entries(quantities)
     .map(([productId, value]) => ({ productId, quantity: Number(value) }))
@@ -44,6 +62,13 @@ export default function BatchSendClient({
     setQuantities({});
     setError(null);
     setSuccess(null);
+    setHistory(null);
+    // Scoped to whichever shop was just picked — switching shops switches whose
+    // history is shown, same as the dropdown scopes everything else on this page.
+    if (newShopId) {
+      setHistoryLoading(true);
+      loadHistory(newShopId);
+    }
   }
 
   function handleQuantityChange(productId: string, value: string) {
@@ -91,6 +116,8 @@ export default function BatchSendClient({
         const dateLabel = `${formatDateDDMMYY(now)}, ${formatTime12(now)}`;
         const text = buildTopUpCopyText(data.shopName, dateLabel, sentCategories);
         setTopUps((prev) => [{ id: `${now.getTime()}-${Math.random()}`, text }, ...prev]);
+        setHistoryLoading(true);
+        loadHistory(shopId);
 
         notifyStockUpdated();
         router.refresh();
@@ -121,6 +148,29 @@ export default function BatchSendClient({
           send them all to this shop in one go.
         </p>
       </section>
+
+      {shopId && (
+        <section className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 mb-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Sent to {shopName} today
+            </h2>
+            {history && history.categories.length > 0 && (
+              <CopyButton
+                text={buildTopUpCopyText(history.shopName, formatDateDDMMYY(new Date()), history.categories)}
+                label="Copy top-up list"
+              />
+            )}
+          </div>
+          {historyLoading ? (
+            <p className="text-sm text-zinc-500">Loading…</p>
+          ) : history && history.categories.length > 0 ? (
+            <WarehouseBreakdown kind="SENT" categories={history.categories} />
+          ) : (
+            <p className="text-sm text-zinc-500">Nothing sent to this shop yet today.</p>
+          )}
+        </section>
+      )}
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {success && <p className="mb-2 text-sm text-green-600 dark:text-green-400">{success}</p>}
